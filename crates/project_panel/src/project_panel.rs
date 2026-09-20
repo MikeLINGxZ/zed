@@ -7939,7 +7939,7 @@ impl Render for ProjectPanel {
                             .justify_end()
                             .gap_1()
                             .px_2()
-                            .py_1()
+                            .h(ui::Tab::container_height(cx))
                             .border_b_1()
                             .border_color(cx.theme().colors().border)
                             .child(
