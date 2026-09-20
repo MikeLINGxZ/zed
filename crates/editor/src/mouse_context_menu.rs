@@ -7,7 +7,10 @@ use crate::{
     selections_collection::SelectionsCollection,
 };
 use gpui::prelude::FluentBuilder;
-use gpui::{Context, DismissEvent, Entity, Focusable as _, Pixels, Point, Subscription, Window};
+use gpui::{
+    ClipboardItem, Context, DismissEvent, Entity, Focusable as _, Pixels, Point, Subscription,
+    Window,
+};
 use project::DisableAiSettings;
 use std::ops::Range;
 use text::PointUtf16;
@@ -200,6 +203,25 @@ pub fn deploy_context_menu(
 
         let focus = window.focused(cx);
         let has_reveal_target = editor.target_file(cx).is_some();
+        let reference = buffer
+            .point_to_buffer_point(point.to_point(&display_map))
+            .and_then(|(buffer, position)| {
+                let file = buffer.file()?;
+                let project = project.read(cx);
+                let worktree = project.worktree_for_id(file.worktree_id(cx), cx)?;
+                let worktree = worktree.read(cx);
+                let relative_path = file.path().display(project.path_style(cx));
+                let path = if worktree.is_visible() && !file.path().is_empty() {
+                    relative_path.to_string()
+                } else {
+                    worktree
+                        .abs_path()
+                        .join(relative_path.as_ref())
+                        .to_string_lossy()
+                        .into_owned()
+                };
+                Some(format!("{path}:{}", position.row + 1))
+            });
         let has_selections = editor
             .selections
             .all::<PointUtf16>(&display_map)
@@ -315,6 +337,15 @@ pub fn deploy_context_menu(
                     !has_reveal_target,
                     "Open in Terminal",
                     Box::new(OpenInTerminal),
+                )
+                .item(
+                    ui::ContextMenuEntry::new("Copy Reference")
+                        .disabled(reference.is_none())
+                        .handler(move |_, cx| {
+                            if let Some(reference) = &reference {
+                                cx.write_to_clipboard(ClipboardItem::new_string(reference.clone()));
+                            }
+                        }),
                 )
                 .action_disabled_when(
                     !has_git_repo,
